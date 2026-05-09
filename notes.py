@@ -25,8 +25,12 @@ def load_notes() -> dict[str, dict]:
 def save_notes(notes: dict[str, dict]) -> None:
     """Persist the notes dictionary to disk."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    try:
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+    except (IOError, UnicodeEncodeError) as e:
+        print(f"Failed to save notes: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def add_note(title: str, body: str) -> None:
@@ -69,7 +73,6 @@ def delete_note(title: str) -> None:
     del notes[note_id]
     save_notes(notes)
     print(f"Deleted: {note['title']}")
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Simple CLI notes")

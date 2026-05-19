@@ -5,6 +5,7 @@ import argparse
 import json
 import sys
 from datetime import datetime
+import uuid
 from pathlib import Path
 
 NOTES_DIR = Path.home() / ".notescli"
@@ -32,11 +33,12 @@ def save_notes(notes: dict[str, dict]) -> None:
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = str(uuid.uuid4())
+    timestamp = datetime.now().isoformat(timespec="seconds")
     notes[note_id] = {
         "title": title,
         "body": body,
-        "created": note_id,
+        "created": timestamp,
     }
     save_notes(notes)
     print(f"Note saved: {title}")
@@ -48,7 +50,7 @@ def list_notes() -> None:
     if not notes:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
-    for note_id, note in sorted(notes.items(), reverse=True):
+    for note_id, note in sorted(notes.items(), key=lambda x: x[1]["created"], reverse=True):
         created = note["created"]
         print(f"\n[{created}] {note['title']}")
         print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")

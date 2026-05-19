@@ -64,7 +64,7 @@ def delete_note(title: str) -> None:
     ]
     if not matches:
         print(f"No note found matching: {title}")
-        return
+        sys.exit(1)
     note_id, note = matches[0]
     del notes[note_id]
     save_notes(notes)

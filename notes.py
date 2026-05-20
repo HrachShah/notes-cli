@@ -60,7 +60,7 @@ def delete_note(title: str) -> None:
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if title.lower() in note["title"].lower() or title.lower() in note["body"].lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")

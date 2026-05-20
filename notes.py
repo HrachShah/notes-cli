@@ -55,7 +55,7 @@ def list_notes() -> None:
     for note_id, note in sorted(notes.items(), reverse=True):
         created = note["created"]
         print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        print(f"  {(note['body'] or '')[:80]}{'...' if len(note['body'] or '') > 80 else ''}")
 
 
 def delete_note(title: str) -> None:

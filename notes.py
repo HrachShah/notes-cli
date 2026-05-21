@@ -25,21 +25,28 @@ def load_notes() -> dict[str, dict]:
 def save_notes(notes: dict[str, dict]) -> None:
     """Persist the notes dictionary to disk."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    try:
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+    except OSError as exc:
+        raise OSError(f"Failed to write notes to {NOTES_FILE}: {exc}") from exc
 
 
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
-    notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
-    notes[note_id] = {
-        "title": title,
-        "body": body,
-        "created": note_id,
-    }
-    save_notes(notes)
-    print(f"Note saved: {title}")
+    try:
+        notes = load_notes()
+        note_id = datetime.now().isoformat(timespec="seconds")
+        notes[note_id] = {
+            "title": title,
+            "body": body,
+            "created": note_id,
+        }
+        save_notes(notes)
+        print(f"Note saved: {title}")
+    except OSError as exc:
+        print(f"Failed to save note: {exc}")
+        sys.exit(1)
 
 
 def list_notes() -> None:
@@ -56,19 +63,23 @@ def list_notes() -> None:
 
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
-    notes = load_notes()
-    matches = [
-        (note_id, note)
-        for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
-    ]
-    if not matches:
-        print(f"No note found matching: {title}")
-        return
-    note_id, note = matches[0]
-    del notes[note_id]
-    save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    try:
+        notes = load_notes()
+        matches = [
+            (note_id, note)
+            for note_id, note in notes.items()
+            if title.lower() in note["title"].lower()
+        ]
+        if not matches:
+            print(f"No note found matching: {title}")
+            return
+        note_id, note = matches[0]
+        del notes[note_id]
+        save_notes(notes)
+        print(f"Deleted: {note['title']}")
+    except OSError as exc:
+        print(f"Failed to delete note: {exc}")
+        sys.exit(1)
 
 
 def main() -> None:

@@ -25,8 +25,12 @@ def load_notes() -> dict[str, dict]:
 def save_notes(notes: dict[str, dict]) -> None:
     """Persist the notes dictionary to disk."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    try:
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+    except OSError as e:
+        print(f"Failed to write notes file: {e}", file=sys.stderr)
+        raise
 
 
 def add_note(title: str, body: str) -> None:
@@ -51,7 +55,7 @@ def list_notes() -> None:
     for note_id, note in sorted(notes.items(), reverse=True):
         created = note["created"]
         print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        print(f"  {(note['body'] or '')[:80]}{'...' if len(note['body'] or '') > 80 else ''}")
 
 
 def delete_note(title: str) -> None:

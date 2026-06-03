@@ -49,9 +49,18 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            print(f"\n[{note_id}] <unreadable entry>")
+            continue
+        created = note.get("created", note_id)
+        title = note.get("title", "<no title>")
+        body = note.get("body") or ""
+        if not isinstance(body, str):
+            body = str(body)
+        preview = body[:80]
+        suffix = "..." if len(body) > 80 else ""
+        print(f"\n[{created}] {title}")
+        print(f"  {preview}{suffix}")
 
 
 def delete_note(title: str) -> None:

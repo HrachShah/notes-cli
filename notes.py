@@ -64,7 +64,7 @@ def delete_note(title: str) -> None:
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() == note["title"].lower()
+        if title.lower() == note.get("title", "").lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")
@@ -72,7 +72,7 @@ def delete_note(title: str) -> None:
     note_id, note = matches[0]
     del notes[note_id]
     save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    print(f"Deleted: {note.get('title', '(untitled)')}")
 
 
 def main() -> None:

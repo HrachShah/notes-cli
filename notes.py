@@ -36,7 +36,7 @@ def save_notes(notes: dict[str, dict]) -> None:
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _make_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -44,6 +44,24 @@ def add_note(title: str, body: str) -> None:
     }
     save_notes(notes)
     print(f"Note saved: {title}")
+
+
+def _make_note_id(notes: dict[str, dict]) -> str:
+    """Generate a unique note id, disambiguating same-second collisions.
+
+    ``datetime.now(timespec="seconds")`` only resolves to one-second
+    granularity, so rapid successive calls (or the test suite calling
+    add_note in a tight loop) would overwrite earlier notes that share
+    the same timestamp. Suffix ``-2``, ``-3`` ... until the id is
+    unused, preserving the original timestamp as the canonical key.
+    """
+    base = datetime.now().isoformat(timespec="seconds")
+    candidate = base
+    suffix = 2
+    while candidate in notes:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def list_notes() -> None:

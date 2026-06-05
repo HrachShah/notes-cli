@@ -3,12 +3,14 @@
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
 NOTES_DIR = Path.home() / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
+TMP_FILE = NOTES_FILE.with_suffix(".json.tmp")
 
 
 def load_notes() -> dict[str, dict]:
@@ -23,10 +25,25 @@ def load_notes() -> dict[str, dict]:
 
 
 def save_notes(notes: dict[str, dict]) -> None:
-    """Persist the notes dictionary to disk."""
+    """Persist the notes dictionary to disk.
+
+    Writes to a sibling .tmp file first and then atomically renames it
+    into place so a crash mid-write (power loss, OOM kill, full disk)
+    cannot leave notes.json truncated or partially written. The .tmp
+    file is cleaned up if the rename fails for any reason.
+    """
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    try:
+        with open(TMP_FILE, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+        os.replace(TMP_FILE, NOTES_FILE)
+    except OSError:
+        if TMP_FILE.exists():
+            try:
+                TMP_FILE.unlink()
+            except OSError:
+                pass
+        raise
 
 
 def add_note(title: str, body: str) -> None:

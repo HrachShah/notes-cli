@@ -49,18 +49,28 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        # Notes written by older versions (or hand-edited / partially written)
+        # can be missing one of these fields; default to the note_id, a
+        # placeholder title, or an empty body so the loop doesn't crash.
+        created = note.get("created", note_id)
+        title = note.get("title", "(untitled)")
+        body = note.get("body", "") or ""
+        body = body[:80] + ("..." if len(body) > 80 else "")
+        print(f"\n[{created}] {title}")
+        print(f"  {body}")
 
 
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
     notes = load_notes()
+    target = title.lower()
+    # A note written by a future schema or hand-edit may not have a 'title'
+    # field; use .get('') so the search degrades to "no match" instead of
+    # raising KeyError mid-loop.
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if target in (note.get("title") or "").lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")
@@ -68,7 +78,7 @@ def delete_note(title: str) -> None:
     note_id, note = matches[0]
     del notes[note_id]
     save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    print(f"Deleted: {note.get('title', '(untitled)')}")
 
 
 def main() -> None:

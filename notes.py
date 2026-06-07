@@ -11,6 +11,26 @@ NOTES_DIR = Path.home() / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
 
 
+def _generate_note_id(notes: dict) -> str:
+    """Generate a unique note id based on the current time.
+
+    The id includes microsecond resolution to make collisions unlikely under
+    normal usage, and a short incrementing hex suffix is appended if a
+    generated id still matches an existing key (which can happen when
+    multiple notes are added in the same microsecond, e.g. inside a tight
+    loop or in tests).
+    """
+    base = datetime.now().isoformat(timespec="microseconds")
+    note_id = base
+    suffix = 0
+    while note_id in notes:
+        suffix += 1
+        # Eight hex chars per collision gives 2^32 unique retries before a
+        # same-microsecond duplicate is even plausible.
+        note_id = f"{base}-{suffix:08x}"
+    return note_id
+
+
 def load_notes() -> dict[str, dict]:
     """Load notes from disk, returning an empty dict if none exist."""
     if not NOTES_FILE.exists():
@@ -32,7 +52,7 @@ def save_notes(notes: dict[str, dict]) -> None:
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _generate_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,

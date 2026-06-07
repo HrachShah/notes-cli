@@ -30,8 +30,30 @@ def save_notes(notes: dict[str, dict]) -> None:
 
 
 def add_note(title: str, body: str) -> None:
-    """Create a new note with the given title and body."""
+    """Create a new note with the given title and body.
+
+    Deduplicates against existing notes with the same title and body:
+    re-adding a note that already exists prints a one-line "Note
+    already saved" message and leaves the original timestamp and id
+    untouched, instead of creating a second entry with a fresh
+    timestamp. The check is case-insensitive and whitespace-trimmed
+    on both fields so accidental duplicates from a clipboard with a
+    trailing newline or from "Hello" vs "hello" do not pile up the
+    list. Notes that only partially match (same title but different
+    body, or vice versa) are still saved.
+    """
     notes = load_notes()
+    norm_title = title.strip().casefold()
+    norm_body = body.strip().casefold()
+    for existing in notes.values():
+        if not isinstance(existing, dict):
+            continue
+        if (
+            existing.get("title", "").strip().casefold() == norm_title
+            and existing.get("body", "").strip().casefold() == norm_body
+        ):
+            print(f"Note already saved: {existing.get('title', title)}")
+            return
     note_id = datetime.now().isoformat(timespec="seconds")
     notes[note_id] = {
         "title": title,

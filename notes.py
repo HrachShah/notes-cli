@@ -67,13 +67,22 @@ def list_notes() -> None:
 
 
 def delete_note(title: str) -> None:
-    """Delete the first note whose title contains the given string (case-insensitive)."""
+    """Delete the first note whose title contains the given string (case-insensitive).
+
+    Skips entries whose value is not a dict (e.g. a stray string or list
+    that ended up in the JSON file) the same way :func:`list_notes`
+    does. The matching loop reads ``note["title"]`` directly, so a
+    non-dict value would crash with
+    ``TypeError: string indices must be integers`` and leave the rest
+    of the file unscanned.
+    """
     notes = load_notes()
-    matches = [
-        (note_id, note)
-        for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
-    ]
+    matches = []
+    for note_id, note in notes.items():
+        if not isinstance(note, dict):
+            continue
+        if title.lower() in note.get("title", "").lower():
+            matches.append((note_id, note))
     if not matches:
         print(f"No note found matching: {title}")
         return

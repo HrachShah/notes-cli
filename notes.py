@@ -77,7 +77,7 @@ def main() -> None:
 
     add_p = sub.add_parser("add", help="Add a new note")
     add_p.add_argument("title", help="Note title")
-    add_p.add_argument("body", help="Note body (rest of the line)")
+    add_p.add_argument("body", nargs=argparse.REMAINDER, help="Note body (one or more words; joins into a single body)")
 
     sub.add_parser("list", help="List all notes")
 
@@ -87,7 +87,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "add":
-        add_note(args.title, args.body)
+        add_note(args.title, " ".join(args.body) if args.body else "")
     elif args.command == "list":
         list_notes()
     elif args.command == "delete":

@@ -38,7 +38,10 @@ def load_notes() -> dict[str, dict]:
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except json.JSONDecodeError:
+        _quarantine_corrupted_notes_file()
+        return {}
+    except IOError:
         return {}
 
 
@@ -47,6 +50,30 @@ def save_notes(notes: dict[str, dict]) -> None:
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
     with open(NOTES_FILE, "w", encoding="utf-8") as f:
         json.dump(notes, f, indent=2, ensure_ascii=False)
+
+
+def _quarantine_corrupted_notes_file() -> None:
+    """Move an unreadable notes file out of the way before overwriting it.
+
+    Called from load_notes() when the existing notes.json cannot be parsed.
+    The bad file is renamed to notes.json.corrupt-<timestamp> so the user's
+    prior data is preserved on disk for inspection, and a warning is printed
+    pointing at the new path. The next save_notes() call will then create a
+    fresh notes.json without destroying the original content.
+    """
+    import shutil
+    from datetime import datetime as _dt
+    stamp = _dt.now().strftime("%Y%m%d-%H%M%S")
+    backup_path = NOTES_FILE.with_name(f"{NOTES_FILE.name}.corrupt-{stamp}")
+    try:
+        shutil.move(str(NOTES_FILE), str(backup_path))
+    except OSError as e:
+        print(f"warning: notes file is unreadable and could not be backed up: {e}")
+        return
+    print(
+        f"warning: notes file at {NOTES_FILE} could not be parsed; "
+        f"the original contents have been preserved at {backup_path}"
+    )
 
 
 def add_note(title: str, body: str) -> None:

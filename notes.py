@@ -11,6 +11,25 @@ NOTES_DIR = Path.home() / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
 
 
+def _shape_note(value: object) -> dict[str, str] | None:
+    """Return a validated note dict, or None if the parsed value is malformed.
+
+    The notes.json file is plain JSON and users can edit it by hand, run an
+    older version of this tool that wrote a different shape, or have a write
+    truncated by a full disk. Returning None for invalid entries lets the
+    list and delete code paths skip them with a warning instead of crashing
+    the whole command.
+    """
+    if not isinstance(value, dict):
+        return None
+    title = value.get("title")
+    body = value.get("body")
+    created = value.get("created")
+    if not isinstance(title, str) or not isinstance(body, str) or not isinstance(created, str):
+        return None
+    return {"title": title, "body": body, "created": created}
+
+
 def load_notes() -> dict[str, dict]:
     """Load notes from disk, returning an empty dict if none exist."""
     if not NOTES_FILE.exists():
@@ -45,30 +64,56 @@ def add_note(title: str, body: str) -> None:
 def list_notes() -> None:
     """Print all notes, newest first."""
     notes = load_notes()
-    if not notes:
-        print("No notes yet. Add one with: notes-cli add <title>")
+    if not isinstance(notes, dict):
+        print(
+            f"Warning: {NOTES_FILE} did not contain a JSON object; "
+            "treating it as empty.",
+            file=sys.stderr,
+        )
         return
-    for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+    rendered = 0
+    for note_id, raw in notes.items():
+        shaped = _shape_note(raw)
+        if shaped is None:
+            print(
+                f"Warning: skipping note {note_id!r} with unexpected shape",
+                file=sys.stderr,
+            )
+            continue
+        rendered += 1
+        print(f"\n[{shaped['created']}] {shaped['title']}")
+        body = shaped["body"]
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
+    if rendered == 0:
+        if notes:
+            print(
+                "No valid notes to display. Run 'notes-cli add <title> <body>' to start fresh."
+            )
+        else:
+            print("No notes yet. Add one with: notes-cli add <title>")
 
 
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
     notes = load_notes()
-    matches = [
-        (note_id, note)
-        for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
-    ]
-    if not matches:
+    if not isinstance(notes, dict):
         print(f"No note found matching: {title}")
         return
-    note_id, note = matches[0]
-    del notes[note_id]
+    match_id: str | None = None
+    match_note: dict[str, str] | None = None
+    for note_id, raw in notes.items():
+        shaped = _shape_note(raw)
+        if shaped is None:
+            continue
+        if title.lower() in shaped["title"].lower():
+            match_id, match_note = note_id, shaped
+            break
+    if match_id is None or match_note is None:
+        print(f"No note found matching: {title}")
+        return
+    del notes[match_id]
     save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    print(f"Deleted: {match_note['title']}")
 
 
 def main() -> None:

@@ -29,10 +29,28 @@ def save_notes(notes: dict[str, dict]) -> None:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 
+def _generate_note_id(notes: dict[str, dict]) -> str:
+    """Return a unique id for a new note, monotonically increasing within a second.
+
+    ``datetime.now().isoformat(timespec="seconds")`` alone collides for any two
+    notes added in the same second (a quick ``add && add`` from a shell
+    loop, or a CI job that records one step per second). The previous
+    implementation silently overwrote the prior note, so the older entry
+    vanished from disk without any error.
+    """
+    base = datetime.now().isoformat(timespec="seconds")
+    candidate = base
+    suffix = 1
+    while candidate in notes:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
+
+
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _generate_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,

@@ -49,9 +49,20 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            # A hand-edited or partially recovered notes.json can contain
+            # stray non-dict values (a bare string, a list, an int).
+            # Walking the structure with note["title"] on a non-dict would
+            # raise TypeError, and dropping the whole file from the listing
+            # would hide every valid note. Surface the bad key as a
+            # one-line marker and continue.
+            print(f"\n[{note_id}] (skipped: not a note object)")
+            continue
+        created = note.get("created", note_id)
+        title = note.get("title", "(untitled)")
+        body = note.get("body", "")
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
 def delete_note(title: str) -> None:

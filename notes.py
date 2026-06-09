@@ -3,7 +3,6 @@
 
 import argparse
 import json
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -23,10 +22,37 @@ def load_notes() -> dict[str, dict]:
 
 
 def save_notes(notes: dict[str, dict]) -> None:
-    """Persist the notes dictionary to disk."""
-    NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    """Persist the notes dictionary to disk atomically.
+
+    Writes the new JSON to a sibling temp file first, then uses
+    ``Path.replace`` to swap it onto ``NOTES_FILE``. ``Path.replace`` is
+    atomic on POSIX (it is a ``rename(2)`` call), so a crash, power loss,
+    or concurrent reader can never observe a half-written ``notes.json``
+    and end up silently truncating the user's note collection.
+    """
+    try:
+        NOTES_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SystemExit(
+            f"Could not create notes directory {NOTES_DIR}: {exc}"
+        ) from exc
+
+    tmp_path = NOTES_FILE.with_suffix(NOTES_FILE.suffix + ".tmp")
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+        tmp_path.replace(NOTES_FILE)
+    except OSError as exc:
+        # If the swap failed, try to remove the leftover temp file so we
+        # don't leave a stale .notes.json.tmp around that would shadow
+        # the real file on the next read.
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise SystemExit(
+            f"Could not write notes file {NOTES_FILE}: {exc}"
+        ) from exc
 
 
 def add_note(title: str, body: str) -> None:

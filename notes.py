@@ -3,11 +3,16 @@
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
-NOTES_DIR = Path.home() / ".notescli"
+# Allow tests / CI to redirect the storage directory without monkey-patching
+# the module-level constant. NOTES_DIR is the user-facing default, but
+# NOTESCLI_HOME (when set in the environment) takes precedence so a test
+# suite can point the tool at a tmpdir and not pollute ~/.notescli.
+NOTES_DIR = Path(os.environ.get("NOTESCLI_HOME", str(Path.home()))) / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
 
 

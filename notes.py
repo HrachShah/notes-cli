@@ -29,10 +29,29 @@ def save_notes(notes: dict[str, dict]) -> None:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 
+def _make_note_id(notes: dict[str, dict]) -> str:
+    """Build a unique note id, appending -2, -3, ... on collision.
+
+    datetime.now(timespec="seconds") only resolves to one-second
+    granularity, so two add_note() calls issued in the same wall-clock
+    second would otherwise produce the same id and silently overwrite the
+    first note's body and title. The disambiguator preserves the original
+    timestamp as the canonical key so listing stays roughly time-ordered
+    while still guaranteeing uniqueness within a second.
+    """
+    base = datetime.now().isoformat(timespec="seconds")
+    candidate = base
+    suffix = 2
+    while candidate in notes:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
+
+
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _make_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,

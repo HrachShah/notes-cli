@@ -4,11 +4,25 @@
 import argparse
 import json
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 NOTES_DIR = Path.home() / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
+
+
+def _now_id() -> str:
+    """Generate a note ID guaranteed to be unique within a single second.
+
+    datetime.now().isoformat(timespec="seconds") only resolves to one-second
+    granularity, so add_note() called twice within the same wall-clock second
+    produced identical IDs and the second add() silently overwrote the first
+    (because notes is a dict keyed by ID and save_notes() rewrites the whole
+    file in place). The fix appends a short random suffix so concurrent or
+    burst add() calls never collide.
+    """
+    return f"{datetime.now().isoformat(timespec='seconds')}-{uuid.uuid4().hex[:8]}"
 
 
 def load_notes() -> dict[str, dict]:
@@ -23,16 +37,29 @@ def load_notes() -> dict[str, dict]:
 
 
 def save_notes(notes: dict[str, dict]) -> None:
-    """Persist the notes dictionary to disk."""
+    """Persist the notes dictionary to disk atomically.
+
+    Writes to a sibling temp file first, fsyncs it, and only then renames it
+    over NOTES_FILE. rename() on the same filesystem is atomic on POSIX and
+    on Windows when the target is replaced via os.replace(), so an interrupt
+    or crash mid-write leaves the previous notes.json intact rather than
+    leaving a half-written file that the next load_notes() call would have
+    to treat as corrupted.
+    """
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
+    tmp_path = NOTES_FILE.with_suffix(NOTES_FILE.suffix + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(notes, f, indent=2, ensure_ascii=False)
+        f.flush()
+        import os
+        os.fsync(f.fileno())
+    os.replace(tmp_path, NOTES_FILE)
 
 
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _now_id()
     notes[note_id] = {
         "title": title,
         "body": body,

@@ -43,24 +43,49 @@ def add_note(title: str, body: str) -> None:
 
 
 def list_notes() -> None:
-    """Print all notes, newest first."""
+    """Print all notes, newest first.
+
+    Tolerant of stray non-dict values in the notes file. A hand-edited
+    file or a partially-recovered write can contain a bare string, list,
+    int, or float where a note dict is expected; reading the title with
+    note["title"] on any of those would raise TypeError and hide every
+    valid note. Skip the bad value and print a one-line marker instead.
+    """
     notes = load_notes()
     if not notes:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            print(f"\n[{note_id}] (skipped: not a note object)")
+            continue
+        created = note.get("created", note_id)
+        title = note.get("title", "(untitled)")
+        body = note.get("body", "")
+        if not isinstance(title, str):
+            title = str(title)
+        if not isinstance(body, str):
+            body = str(body)
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
 def delete_note(title: str) -> None:
-    """Delete the first note whose title contains the given string (case-insensitive)."""
+    """Delete the first note whose title contains the given string (case-insensitive).
+
+    Skips non-dict entries (stray strings, lists, ints in the JSON file
+    from a hand-edit or partial recovery) and notes whose title is
+    missing or not a string, so a corrupted notes file does not crash
+    the delete command.
+    """
     notes = load_notes()
+    needle = title.lower()
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if isinstance(note, dict)
+        and isinstance(note.get("title"), str)
+        and needle in note["title"].lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")

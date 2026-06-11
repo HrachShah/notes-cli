@@ -43,15 +43,28 @@ def add_note(title: str, body: str) -> None:
 
 
 def list_notes() -> None:
-    """Print all notes, newest first."""
+    """Print all notes, newest first.
+
+    Resilient against a hand-edited or partially written notes file:
+    entries that are not dicts, or that are missing the keys the printer
+    relies on, are skipped with a single-line notice instead of crashing
+    the whole list. An empty ``body`` is rendered as the literal string
+    "(empty)" rather than raising ``TypeError`` on the slice.
+    """
     notes = load_notes()
     if not notes:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            print(f"\n[{note_id}] (skipped: not a dict)")
+            continue
+        created = note.get("created", note_id)
+        title = note.get("title", "(untitled)")
+        body = note.get("body") or ""
+        print(f"\n[{created}] {title}")
+        suffix = "..." if len(body) > 80 else ""
+        print(f"  {body[:80]}{suffix}")
 
 
 def delete_note(title: str) -> None:

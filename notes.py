@@ -17,7 +17,8 @@ def load_notes() -> dict[str, dict]:
         return {}
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
     except (json.JSONDecodeError, IOError):
         return {}
 
@@ -29,10 +30,26 @@ def save_notes(notes: dict[str, dict]) -> None:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 
+def _coerce_text(value: object, fallback: str = "") -> str:
+    if value is None:
+        return fallback
+    return value if isinstance(value, str) else str(value)
+
+
+def _generate_note_id(notes: dict[str, dict]) -> str:
+    base = datetime.now().isoformat(timespec="seconds")
+    if base not in notes:
+        return base
+    suffix = 2
+    while f"{base}-{suffix}" in notes:
+        suffix += 1
+    return f"{base}-{suffix}"
+
+
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _generate_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -49,18 +66,24 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            print(f"\n[{note_id}] (skipped malformed note)")
+            continue
+        created = _coerce_text(note.get("created"), note_id)
+        title = _coerce_text(note.get("title"), "(untitled)")
+        body = _coerce_text(note.get("body"), "")
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
     notes = load_notes()
+    query = title.lower()
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if isinstance(note, dict) and query in _coerce_text(note.get("title")).lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")
@@ -68,7 +91,7 @@ def delete_note(title: str) -> None:
     note_id, note = matches[0]
     del notes[note_id]
     save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    print(f"Deleted: {_coerce_text(note.get('title'), note_id)}")
 
 
 def main() -> None:
@@ -77,7 +100,10 @@ def main() -> None:
 
     add_p = sub.add_parser("add", help="Add a new note")
     add_p.add_argument("title", help="Note title")
-    add_p.add_argument("body", help="Note body (rest of the line)")
+    # REMAINDER so multi-word bodies don't trigger
+    # 'unrecognized arguments' when the shell passes them unquoted.
+    add_p.add_argument("body", nargs=argparse.REMAINDER,
+                       help="Note body (rest of the line)")
 
     sub.add_parser("list", help="List all notes")
 
@@ -87,7 +113,11 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "add":
-        add_note(args.title, args.body)
+        # REMAINDER returns a list of tokens; re-join with single spaces
+        # so `add Title push to staging` and `add Title "push to staging"`
+        # both store the body verbatim. Empty remainder → empty body.
+        body_tokens = args.body or []
+        add_note(args.title, " ".join(body_tokens))
     elif args.command == "list":
         list_notes()
     elif args.command == "delete":

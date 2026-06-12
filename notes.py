@@ -42,16 +42,44 @@ def add_note(title: str, body: str) -> None:
     print(f"Note saved: {title}")
 
 
+def _format_note_body(body: object) -> str:
+    """Render a note body that may be missing or stored under a non-string type.
+
+    Hand-edited notes files (or older notes written before the body field was
+    mandatory) can leave the body as None, an int, or a list. The previous
+    list_notes() crashed with TypeError on every one of those because
+    `note["body"][:80]` requires a string slice and `len(note["body"]) > 80`
+    is a comparison that raises on a non-container. Coerce to a safe
+    preview here so the rest of the row can render.
+    """
+    if isinstance(body, str):
+        return body
+    if body is None:
+        return ""
+    return str(body)
+
+
 def list_notes() -> None:
-    """Print all notes, newest first."""
+    """Print all notes, newest first, tolerating hand-edited entries."""
     notes = load_notes()
     if not notes:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            # A hand-merge that left a non-dict in the file (a bare string,
+            # number, or null) used to crash list_notes() with TypeError on
+            # the very first row. Print a placeholder so the rest of the
+            # file still gets listed.
+            print(f"\n[{note_id}] (skipped: not a dict)")
+            continue
+        created = note.get("created", note_id)
+        title = note.get("title", "(untitled)")
+        body = _format_note_body(note.get("body"))
+        preview = body[:80]
+        suffix = "..." if len(body) > 80 else ""
+        print(f"\n[{created}] {title}")
+        print(f"  {preview}{suffix}")
 
 
 def delete_note(title: str) -> None:

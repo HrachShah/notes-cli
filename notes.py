@@ -76,6 +76,37 @@ def list_notes() -> None:
         print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
+def search_notes(query: str) -> None:
+    """Print notes whose title or body contains the query (case-insensitive).
+
+    Uses the same rendering as list_notes() so multi-line and missing-field
+    entries (covered by the test suite for list_notes) render consistently
+    here. Skips non-dict entries rather than crashing on hand-merged JSON.
+    """
+    notes = load_notes()
+    if not notes:
+        print("No notes yet. Add one with: notes-cli add <title>")
+        return
+    needle = query.lower()
+    matches = []
+    for note_id, note in sorted(notes.items(), reverse=True):
+        if not isinstance(note, dict):
+            continue
+        title = _coerce_text(note.get("title"))
+        body = _coerce_text(note.get("body"))
+        if needle in title.lower() or needle in body.lower():
+            matches.append((note_id, note))
+    if not matches:
+        print(f"No notes match: {query}")
+        return
+    for note_id, note in matches:
+        created = _coerce_text(note.get("created"), note_id)
+        title = _coerce_text(note.get("title"), "(untitled)")
+        body = _coerce_text(note.get("body"), "")
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
+
+
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
     notes = load_notes()
@@ -107,6 +138,9 @@ def main() -> None:
 
     sub.add_parser("list", help="List all notes")
 
+    search_p = sub.add_parser("search", help="Search notes by title or body")
+    search_p.add_argument("query", help="Substring to search for (case-insensitive)")
+
     del_p = sub.add_parser("delete", help="Delete a note")
     del_p.add_argument("title", help="Title to search for and delete")
 
@@ -120,6 +154,8 @@ def main() -> None:
         add_note(args.title, " ".join(body_tokens))
     elif args.command == "list":
         list_notes()
+    elif args.command == "search":
+        search_notes(args.query)
     elif args.command == "delete":
         delete_note(args.title)
     else:

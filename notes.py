@@ -49,9 +49,14 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            print(f"Warning: skipping non-dict entry for note {note_id}")
+            continue
+        created = note.get("created", "unknown")
+        title = note.get("title", "Untitled")
+        body = note.get("body", "")
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
 def delete_note(title: str) -> None:
@@ -60,7 +65,7 @@ def delete_note(title: str) -> None:
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if isinstance(note, dict) and title.lower() in note["title"].lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")

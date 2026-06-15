@@ -49,9 +49,20 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            # A hand-merged file can leave a stray non-dict entry in the
+            # notes dict (e.g. a future migration that stored lists, or
+            # a half-recovered write). Skip it instead of crashing on
+            # the next line's note['created'] subscript; the matching
+            # delete-side guard lives in delete_note().
+            print(f"\n[{note_id}] (skipped: not a note object)")
+            continue
+        created = note.get("created", note_id)
+        title = note.get("title", "(untitled)")
+        body = note.get("body", "")
+        body = body if isinstance(body, str) else str(body)
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
 def delete_note(title: str) -> None:

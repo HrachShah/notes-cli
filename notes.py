@@ -29,10 +29,26 @@ def save_notes(notes: dict[str, dict]) -> None:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 
+def _new_note_id(notes: dict[str, dict]) -> str:
+    """Return a note id that does not collide with any existing key.
+
+    Uses microsecond precision for the timestamp and appends a numeric
+    suffix when the id is already taken, so two notes saved in the same
+    second never overwrite each other.
+    """
+    base = datetime.now().isoformat(timespec="microseconds")
+    candidate = base
+    suffix = 1
+    while candidate in notes:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
+
+
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _new_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -71,7 +87,7 @@ def delete_note(title: str) -> None:
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if isinstance(note, dict) and title.lower() in str(note.get("title", "")).lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")
@@ -79,7 +95,7 @@ def delete_note(title: str) -> None:
     note_id, note = matches[0]
     del notes[note_id]
     save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    print(f"Deleted: {note.get('title', 'unknown')}")
 
 
 def main() -> None:

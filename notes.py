@@ -11,6 +11,29 @@ NOTES_DIR = Path.home() / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
 
 
+def _generate_note_id(notes: dict[str, dict], now=None) -> str:
+    """Return a note id that does not collide with any key already in `notes`.
+
+    Uses a microsecond-precision ISO timestamp and appends a `-N` suffix only
+    when the base timestamp is already taken, so a burst of notes added in the
+    same microsecond still get unique ids (the previous code used
+    `timespec="seconds"`, so two notes added in the same second silently
+    overwrote each other in the JSON store).
+
+    `now` is an optional zero-arg callable returning a datetime; it defaults to
+    `datetime.now`. Exposed for tests.
+    """
+    if now is None:
+        now = datetime.now
+    base = now().isoformat(timespec="microseconds")
+    candidate = base
+    suffix = 1
+    while candidate in notes:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
+
+
 def load_notes() -> dict[str, dict]:
     """Load notes from disk, returning an empty dict if none exist."""
     if not NOTES_FILE.exists():
@@ -33,10 +56,17 @@ def save_notes(notes: dict[str, dict]) -> None:
         sys.exit(1)
 
 
-def add_note(title: str, body: str) -> None:
-    """Create a new note with the given title and body."""
+def add_note(title: str, body: str, now=None) -> None:
+    """Create a new note with the given title and body.
+
+    `now` is an optional callable that returns a datetime; it defaults to
+    `datetime.now`. Tests use it to force the same timestamp across multiple
+    calls and verify the collision-handling path in `_generate_note_id`.
+    """
+    if now is None:
+        now = datetime.now
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _generate_note_id(notes, now=now)
     notes[note_id] = {
         "title": title,
         "body": body,

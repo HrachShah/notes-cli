@@ -33,6 +33,8 @@ def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
     note_id = datetime.now().isoformat(timespec="seconds")
+    if note_id in notes:
+        note_id = f"{note_id}_{len([k for k in notes if k.startswith(note_id)])}"
     notes[note_id] = {
         "title": title,
         "body": body,

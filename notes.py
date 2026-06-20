@@ -32,7 +32,16 @@ def save_notes(notes: dict[str, dict]) -> None:
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    base_id = datetime.now().isoformat(timespec="seconds")
+    note_id = base_id
+    # Two `notes add` calls within the same second used to share an id, so the
+    # second call would silently overwrite the first. Disambiguate by appending
+    # a counter until we land on a key that isn't already in the store. The
+    # counter is only used on collision so existing ids stay stable.
+    suffix = 1
+    while note_id in notes:
+        note_id = f"{base_id}-{suffix}"
+        suffix += 1
     notes[note_id] = {
         "title": title,
         "body": body,

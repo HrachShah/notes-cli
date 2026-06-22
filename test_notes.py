@@ -98,5 +98,19 @@ class NotesCliTests(unittest.TestCase):
         self.assertEqual(len(data), 1)
 
 
+    def test_delete_note_skips_entries_with_non_string_title(self):
+        # A note hand-edited into notes.json (or written by a different
+        # version of the tool) can have a missing or null title field.
+        # delete_note used to call note["title"].lower() on those entries
+        # and crash with AttributeError; it should now silently skip them
+        # and still match the legitimate one.
+        notes.NOTES_FILE.write_text(json.dumps({
+            "broken": {"title": None, "body": "x", "created": "broken"},
+            "ok": {"title": "deploy notes", "body": "y", "created": "ok"},
+        }))
+        notes.delete_note("deploy")
+        data = json.loads(notes.NOTES_FILE.read_text("utf-8"))
+        self.assertEqual(list(data.keys()), ["broken"])
+
 if __name__ == "__main__":
     unittest.main()

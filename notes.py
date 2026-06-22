@@ -84,10 +84,12 @@ def list_notes() -> None:
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
     notes = load_notes()
+    target = title.lower()
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if isinstance(note, dict) and title.lower() in note["title"].lower()
+        if isinstance(note, dict) and isinstance(note.get("title"), str)
+        and target in note["title"].lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")

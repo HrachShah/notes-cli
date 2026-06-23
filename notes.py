@@ -3,12 +3,31 @@
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 NOTES_DIR = Path.home() / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
+
+
+def _new_note_id(notes: dict[str, dict]) -> str:
+    """Return a unique note id, appending a numeric suffix on collision.
+
+    ``datetime.now().isoformat(timespec="seconds")`` only has one-second
+    resolution, so two ``notes add`` calls issued in the same second used
+    to silently overwrite each other. Append ``-2``, ``-3`` ... until the
+    id is free.
+    """
+    base = datetime.now().isoformat(timespec="seconds")
+    candidate = base
+    suffix = 2
+    while candidate in notes:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def load_notes() -> dict[str, dict]:
@@ -18,21 +37,41 @@ def load_notes() -> dict[str, dict]:
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, IOError) as exc:
+        print(f"warning: failed to read {NOTES_FILE}: {exc}", file=sys.stderr)
         return {}
 
 
 def save_notes(notes: dict[str, dict]) -> None:
-    """Persist the notes dictionary to disk."""
+    """Persist the notes dictionary to disk atomically.
+
+    Writes to a sibling temp file in the same directory and then
+    ``os.replace``s it onto the target path. If the process dies
+    mid-write, the previous notes.json is still intact.
+    """
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=".notes.", suffix=".json.tmp", dir=NOTES_DIR
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, NOTES_FILE)
+    except Exception:
+        # Best-effort cleanup of the orphan temp file on failure.
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _new_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -42,16 +81,37 @@ def add_note(title: str, body: str) -> None:
     print(f"Note saved: {title}")
 
 
+def _is_valid_note(note: object) -> bool:
+    """A note row is a dict with at least title/body/created string fields.
+
+    Older versions and external edits can leave non-dict entries in the
+    file; ``list_notes``/``delete_note`` should ignore those rather than
+    crashing with ``TypeError: string indices must be integers``.
+    """
+    if not isinstance(note, dict):
+        return False
+    return all(isinstance(note.get(k), str) for k in ("title", "body", "created"))
+
+
 def list_notes() -> None:
     """Print all notes, newest first."""
     notes = load_notes()
-    if not notes:
+    valid = {nid: note for nid, note in notes.items() if _is_valid_note(note)}
+    skipped = len(notes) - len(valid)
+    if skipped:
+        print(
+            f"warning: skipped {skipped} malformed note row(s)",
+            file=sys.stderr,
+        )
+    if not valid:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
-    for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note.get('body', '')[:80]}{'...' if len(note.get('body', '')) > 80 else ''}")
+    for note_id, note in sorted(valid.items(), reverse=True):
+        body = note["body"]
+        print(f"\n[{note['created']}] {note['title']}")
+        print(
+            f"  {body[:80]}{'...' if len(body) > 80 else ''}"
+        )
 
 
 def delete_note(title: str) -> None:
@@ -60,7 +120,8 @@ def delete_note(title: str) -> None:
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if _is_valid_note(note)
+        and title.lower() in note["title"].lower()
     ]
     if not matches:
         print(f"No note found matching: {title}")

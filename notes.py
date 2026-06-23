@@ -115,7 +115,16 @@ def list_notes() -> None:
 
 
 def delete_note(title: str) -> None:
-    """Delete the first note whose title contains the given string (case-insensitive)."""
+    """Delete the first note whose title contains the given string (case-insensitive).
+
+    An empty or whitespace-only ``title`` is rejected: the substring match
+    ``"".lower() in note["title"].lower()`` is always true, so without this
+    guard an empty argument would silently delete the first note. Print a
+    clear error and leave the store intact instead.
+    """
+    if not title or not title.strip():
+        print("error: cannot delete with an empty title", file=sys.stderr)
+        return
     notes = load_notes()
     matches = [
         (note_id, note)

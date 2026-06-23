@@ -83,3 +83,34 @@ def test_delete_removes_matching_note(isolated_notes):
     raw = __import__("json").loads(notes_file.read_text())
     assert len(raw) == 1
     assert "Work" in {v["title"] for v in raw.values()}
+
+
+def test_delete_with_empty_title_does_not_remove_any_note(isolated_notes, capsys):
+    notes, notes_file = isolated_notes
+    notes.add_note("Alpha", "1")
+    notes.add_note("Beta", "2")
+    notes.delete_note("")
+    raw = __import__("json").loads(notes_file.read_text())
+    assert len(raw) == 2, "empty title must not delete any note"
+    captured = capsys.readouterr()
+    assert "empty" in captured.err.lower()
+
+
+def test_delete_with_whitespace_title_does_not_remove_any_note(isolated_notes, capsys):
+    notes, notes_file = isolated_notes
+    notes.add_note("Alpha", "1")
+    notes.delete_note("   \t  ")
+    raw = __import__("json").loads(notes_file.read_text())
+    assert len(raw) == 1, "whitespace-only title must not delete any note"
+    captured = capsys.readouterr()
+    assert "empty" in captured.err.lower()
+
+
+def test_delete_substring_still_works(isolated_notes):
+    notes, notes_file = isolated_notes
+    notes.add_note("Grocery shopping", "milk")
+    notes.add_note("Work tasks", "release")
+    notes.delete_note("shop")
+    raw = __import__("json").loads(notes_file.read_text())
+    assert len(raw) == 1
+    assert "Work tasks" in {v["title"] for v in raw.values()}

@@ -140,6 +140,61 @@ class LoadNotesTests(unittest.TestCase):
         notes.NOTES_FILE.write_text("not json {", encoding="utf-8")
         self.assertEqual(notes.load_notes(), {})
 
+    def test_json_null_returns_empty_dict(self):
+        notes.NOTES_DIR.mkdir(parents=True, exist_ok=True)
+        notes.NOTES_FILE.write_text("null", encoding="utf-8")
+        self.assertEqual(notes.load_notes(), {})
+
+    def test_json_list_returns_empty_dict(self):
+        notes.NOTES_DIR.mkdir(parents=True, exist_ok=True)
+        notes.NOTES_FILE.write_text("[]", encoding="utf-8")
+        self.assertEqual(notes.load_notes(), {})
+
+    def test_json_empty_object_returns_empty_dict(self):
+        notes.NOTES_DIR.mkdir(parents=True, exist_ok=True)
+        notes.NOTES_FILE.write_text("{}", encoding="utf-8")
+        self.assertEqual(notes.load_notes(), {})
+
+    def test_json_number_returns_empty_dict(self):
+        notes.NOTES_DIR.mkdir(parents=True, exist_ok=True)
+        notes.NOTES_FILE.write_text("123", encoding="utf-8")
+        self.assertEqual(notes.load_notes(), {})
+
+    def test_json_string_returns_empty_dict(self):
+        notes.NOTES_DIR.mkdir(parents=True, exist_ok=True)
+        notes.NOTES_FILE.write_text('"hello"', encoding="utf-8")
+        self.assertEqual(notes.load_notes(), {})
+
+    def test_add_note_after_load_notes_sees_non_dict_does_not_crash(self):
+        notes.NOTES_DIR.mkdir(parents=True, exist_ok=True)
+        notes.NOTES_FILE.write_text("[]", encoding="utf-8")
+        notes.load_notes()
+        notes.add_note("Test", "body")
+
+
+class TestDeleteNote(unittest.TestCase):
+    """Tests for delete_note()."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._orig_dir = notes.NOTES_DIR
+        self._orig_file = notes.NOTES_FILE
+        notes.NOTES_DIR = Path(self._tmpdir.name) / ".notescli"
+        notes.NOTES_FILE = notes.NOTES_DIR / "notes.json"
+
+    def tearDown(self):
+        notes.NOTES_DIR = self._orig_dir
+        notes.NOTES_FILE = self._orig_file
+        self._tmpdir.cleanup()
+
+    def test_delete_note_removes_note_from_store(self):
+        notes.add_note("Test", "body")
+        data = json.loads(notes.NOTES_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(len(data), 1)
+        notes.delete_note("Test")
+        data = json.loads(notes.NOTES_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(len(data), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

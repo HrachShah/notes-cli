@@ -56,6 +56,9 @@ def list_notes() -> None:
 
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
+    if not title or not title.strip():
+        print("delete: title argument is required and must be non-blank")
+        return
     notes = load_notes()
     matches = [
         (note_id, note)

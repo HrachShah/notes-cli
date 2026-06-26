@@ -4,6 +4,8 @@
 import argparse
 import json
 import sys
+import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -30,13 +32,20 @@ def save_notes(notes: dict[str, dict]) -> None:
 
 
 def add_note(title: str, body: str) -> None:
-    """Create a new note with the given title and body."""
+    """Create a new note with the given title and body.
+
+    The note_id combines the wall-clock second with a short random suffix
+    so two notes saved in the same second do not overwrite each other
+    in the JSON store. The ``created`` field stays the second-precision
+    timestamp so list and delete still display a human-friendly time.
+    """
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    created = datetime.now().isoformat(timespec="seconds")
+    note_id = f"{created}-{uuid.uuid4().hex[:8]}"
     notes[note_id] = {
         "title": title,
         "body": body,
-        "created": note_id,
+        "created": created,
     }
     save_notes(notes)
     print(f"Note saved: {title}")

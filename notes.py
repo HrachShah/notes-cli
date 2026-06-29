@@ -4,6 +4,7 @@
 import argparse
 import json
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def save_notes(notes: dict[str, dict]) -> None:
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = datetime.now().isoformat(timespec="seconds") + "-" + uuid.uuid4().hex[:8]
     notes[note_id] = {
         "title": title,
         "body": body,

@@ -3,7 +3,9 @@
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -12,27 +14,54 @@ NOTES_FILE = NOTES_DIR / "notes.json"
 
 
 def load_notes() -> dict[str, dict]:
-    """Load notes from disk, returning an empty dict if none exist."""
+    """Load notes from disk, returning an empty dict if none exist.
+
+    The on-disk file is always written as a JSON object (see
+    :func:`save_notes`), but the previous code returned whatever
+    :func:`json.load` produced without checking the type. A hand-edited
+    or partially-written file containing a list, number, or null would
+    therefore crash the next :func:`add_note` call with a confusing
+    ``TypeError: list indices must be integers or slices, not str``.
+
+    Validate the root type and return an empty dict if it is not a JSON
+    object. Per-entry type checks are the caller's job (see
+    :func:`list_notes` and :func:`delete_note`).
+    """
     if not NOTES_FILE.exists():
         return {}
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except (json.JSONDecodeError, IOError):
         return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
 
 
 def save_notes(notes: dict[str, dict]) -> None:
     """Persist the notes dictionary to disk."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as f:
         json.dump(notes, f, indent=2, ensure_ascii=False)
+        temp_file = f.name
+    os.replace(temp_file, NOTES_FILE)
 
 
 def add_note(title: str, body: str) -> None:
-    """Create a new note with the given title and body."""
+    """Create a new note with the given title and body.
+
+    An empty or whitespace-only title is rejected with a non-zero exit
+    code so the call site (the CLI ``add`` subcommand) can fail fast
+    instead of writing a note that the user cannot identify.
+    """
+    title = (title or "").strip()
+    body = body or ""
+    if not title:
+        print("Error: note title must not be empty.", file=sys.stderr)
+        sys.exit(2)
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _new_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -43,32 +72,69 @@ def add_note(title: str, body: str) -> None:
 
 
 def list_notes() -> None:
-    """Print all notes, newest first."""
+    """Print all notes, newest first.
+
+    Tolerates note entries that are missing the expected fields (e.g.
+    a hand-edited ``notes.json``) or are not dicts at all; a malformed
+    entry is shown as ``(untitled)`` with an empty body and the
+    iteration moves on, instead of crashing the whole ``list`` call.
+    """
     notes = load_notes()
     if not notes:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            continue
+        title = note.get("title", "(untitled)")
+        body = note.get("body", "")
+        created = note.get("created", note_id)
+        print(f"\n[{created}] {title}")
+        preview = body[:80]
+        if len(body) > 80:
+            preview += "..."
+        print(f"  {preview}")
 
 
 def delete_note(title: str) -> None:
-    """Delete the first note whose title contains the given string (case-insensitive)."""
+    """Delete the first note whose title contains the given string (case-insensitive).
+
+    The previous implementation used ``title.lower() in note["title"].lower()``
+    as the match predicate without first checking whether ``title`` was empty.
+    An empty needle is a substring of every string, so ``delete_note("")``
+    silently deleted the first note in the store regardless of what the user
+    intended. The same applied to a whitespace-only needle. Reject both
+    explicitly with a non-zero exit code and a clear error message.
+    """
+    needle = (title or "").strip()
+    if not needle:
+        print("Error: delete search text must not be empty.", file=sys.stderr)
+        sys.exit(2)
     notes = load_notes()
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if isinstance(note, dict)
+        and needle.lower() in (note.get("title") or "").lower()
     ]
     if not matches:
-        print(f"No note found matching: {title}")
+        print(f"No note found matching: {needle}")
         return
     note_id, note = matches[0]
     del notes[note_id]
     save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    print(f"Deleted: {note.get('title', '(untitled)')}")
+
+
+def _new_note_id(notes: dict[str, dict]) -> str:
+    """Generate a new unique note ID based on existing notes."""
+    existing_ids = set(notes.keys())
+    counter = 1
+    while True:
+        new_id = f"note-{counter}"
+        if new_id not in existing_ids:
+            return new_id
+        counter += 1
 
 
 def main() -> None:

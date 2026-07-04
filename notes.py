@@ -3,7 +3,9 @@
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -40,8 +42,10 @@ def load_notes() -> dict[str, dict]:
 def save_notes(notes: dict[str, dict]) -> None:
     """Persist the notes dictionary to disk."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as f:
         json.dump(notes, f, indent=2, ensure_ascii=False)
+        temp_file = f.name
+    os.replace(temp_file, NOTES_FILE)
 
 
 def add_note(title: str, body: str) -> None:
@@ -57,7 +61,7 @@ def add_note(title: str, body: str) -> None:
         print("Error: note title must not be empty.", file=sys.stderr)
         sys.exit(2)
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _new_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -120,6 +124,17 @@ def delete_note(title: str) -> None:
     del notes[note_id]
     save_notes(notes)
     print(f"Deleted: {note.get('title', '(untitled)')}")
+
+
+def _new_note_id(notes: dict[str, dict]) -> str:
+    """Generate a new unique note ID based on existing notes."""
+    existing_ids = set(notes.keys())
+    counter = 1
+    while True:
+        new_id = f"note-{counter}"
+        if new_id not in existing_ids:
+            return new_id
+        counter += 1
 
 
 def main() -> None:

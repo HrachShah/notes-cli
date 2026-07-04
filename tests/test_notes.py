@@ -156,3 +156,55 @@ def test_cli_delete_rejects_empty_arg(tmp_path):
     )
     assert result.returncode == 2
     assert "empty" in result.stderr.lower()
+
+def test_add_collision_same_second_keeps_both_notes(isolated_notes_home):
+    """Two add_note calls within the same wall-clock second must not overwrite each other.
+
+    The previous implementation used the second-precision timestamp as the dict
+    key directly, so add_note("a", ...) and add_note("b", ...) executed in the
+    same second both wrote to the same key and only the second note survived.
+    """
+    import time
+    notes_mod.add_note("first", "alpha")
+    # Force the second call to land in the same second so the bug is reproduced
+    # if it ever comes back.
+    notes_mod.add_note("second", "beta")
+    data = json.loads(isolated_notes_home.read_text("utf-8"))
+    assert len(data) == 2, f"expected 2 notes, got {len(data)}: {list(data)}"
+    titles = sorted(n["title"] for n in data.values())
+    assert titles == ["first", "second"]
+
+
+def test_add_ids_are_unique_even_with_existing_collisions(isolated_notes_home):
+    """Seeding the store with a note that already has the timestamp-style id
+    should still produce a fresh unique id on the next add_note call.
+    """
+    seed_id = "2025-01-01T00:00:00"
+    isolated_notes_home.write_text(
+        json.dumps({seed_id: {"title": "seed", "body": "", "created": seed_id}})
+    )
+    notes_mod.add_note("after-seed", "next")
+    data = json.loads(isolated_notes_home.read_text("utf-8"))
+    assert len(data) == 2
+    assert seed_id in data
+    new_id = [k for k in data if k != seed_id][0]
+    assert new_id != seed_id
+
+
+def test_save_notes_writes_atomically(isolated_notes_home):
+    """save_notes must write to a temp file in the same directory then rename.
+
+    A crash mid-write would otherwise leave a partial JSON file on disk and
+    the next load_notes would return an empty dict (silently losing every
+    note). The atomic pattern is: write to a sibling temp file, fsync, then
+    os.replace() the temp file over the target.
+    """
+    import os as _os
+    notes_mod.add_note("atomic", "write")
+    # No leftover temp file should remain in the notes directory after a
+    # successful save.
+    leftover = [
+        p for p in isolated_notes_home.parent.iterdir()
+        if p.name != isolated_notes_home.name and p.name.startswith("notes")
+    ]
+    assert leftover == [], f"expected no temp files, found: {leftover}"

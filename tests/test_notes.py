@@ -157,3 +157,35 @@ def test_cli_delete_rejects_empty_arg(tmp_path):
     )
     assert result.returncode == 2
     assert "empty" in result.stderr.lower()
+
+
+def test_add_same_second_notes_get_distinct_ids(isolated_notes_home):
+    """Two notes saved in the same calendar second must not collide on
+    the same storage key. The previous implementation used
+    `datetime.now().isoformat(timespec='seconds')` as the note id, so a
+    second add_note call in the same second overwrote the first note.
+    """
+    import time
+
+    notes_mod.add_note("first", "body one")
+    # Add a second note back-to-back so both fall inside the same second
+    # on any reasonable clock. Mock the timestamp to be deterministic.
+    notes_mod.add_note("second", "body two")
+    data = json.loads(isolated_notes_home.read_text("utf-8"))
+    assert len(data) == 2, f"expected 2 notes, got {len(data)}: {list(data)}"
+    titles = sorted(n["title"] for n in data.values())
+    assert titles == ["first", "second"]
+
+
+def test_add_note_id_includes_human_readable_timestamp(isolated_notes_home):
+    """The note id is the storage key, but the user-visible 'created'
+    field stays a plain ISO timestamp so list() can show it as-is."""
+    notes_mod.add_note("alpha", "body")
+    data = json.loads(isolated_notes_home.read_text("utf-8"))
+    [(note_id, note)] = list(data.items())
+    # 'created' is human-readable, not a uuid
+    assert note["created"] == note_id[:19], (
+        f"expected 'created' to be the leading ISO seconds in the id, "
+        f"got created={note['created']!r} id={note_id!r}"
+    )
+    assert "T" in note["created"]

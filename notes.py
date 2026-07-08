@@ -4,6 +4,7 @@
 import argparse
 import json
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -57,11 +58,17 @@ def add_note(title: str, body: str) -> None:
         print("Error: note title must not be empty.", file=sys.stderr)
         sys.exit(2)
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    created = datetime.now().isoformat(timespec="seconds")
+    # Append a short uuid suffix to the human-readable timestamp so two
+    # notes saved in the same calendar second don't collide on the same
+    # key and silently overwrite each other. The user-visible 'created'
+    # field still shows the human-readable ISO timestamp; the uuid part
+    # only lives in the storage key.
+    note_id = f"{created}-{uuid.uuid4().hex[:8]}"
     notes[note_id] = {
         "title": title,
         "body": body,
-        "created": note_id,
+        "created": created,
     }
     save_notes(notes)
     print(f"Note saved: {title}")

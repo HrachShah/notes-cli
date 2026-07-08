@@ -29,10 +29,21 @@ def save_notes(notes: dict[str, dict]) -> None:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 
+def _generate_note_id(notes: dict[str, dict]) -> str:
+    """Generate a unique note ID based on the current timestamp."""
+    base = datetime.now().isoformat(timespec="seconds")
+    suffix = 1
+    candidate = base
+    while candidate in notes:
+        candidate = base + "-" + str(suffix)
+        suffix += 1
+    return candidate
+
+
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _generate_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -55,20 +66,29 @@ def list_notes() -> None:
 
 
 def delete_note(title: str) -> None:
-    """Delete the first note whose title contains the given string (case-insensitive)."""
+    """Delete the first note whose title contains the given string (case-insensitive).
+
+    Tolerant of a hand-edited or partially written notes file: entries that
+    are not dicts are skipped, and dicts missing the ``title`` key match
+    against an empty string (so they will not match a non-empty ``title``
+    argument but also will not crash with ``TypeError`` or ``KeyError``).
+    """
     notes = load_notes()
-    matches = [
-        (note_id, note)
-        for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
-    ]
+    target = title.lower()
+    matches = []
+    for note_id, note in notes.items():
+        if not isinstance(note, dict):
+            continue
+        note_title = note.get("title", "")
+        if target in note_title.lower():
+            matches.append((note_id, note))
     if not matches:
         print(f"No note found matching: {title}")
         return
     note_id, note = matches[0]
     del notes[note_id]
     save_notes(notes)
-    print(f"Deleted: {note['title']}")
+    print(f"Deleted: {note.get('title', '(untitled)')}")
 
 
 def main() -> None:

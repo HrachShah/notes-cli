@@ -29,10 +29,21 @@ def save_notes(notes: dict[str, dict]) -> None:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 
+def _generate_note_id(notes: dict[str, dict]) -> str:
+    """Generate a unique note ID based on the current timestamp."""
+    base = datetime.now().isoformat(timespec="seconds")
+    suffix = 1
+    candidate = base
+    while candidate in notes:
+        candidate = base + "-" + str(suffix)
+        suffix += 1
+    return candidate
+
+
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _generate_note_id(notes)
     notes[note_id] = {
         "title": title,
         "body": body,

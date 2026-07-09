@@ -74,6 +74,12 @@ def list_notes() -> None:
     a hand-edited ``notes.json``) or are not dicts at all; a malformed
     entry is shown as ``(untitled)`` with an empty body and the
     iteration moves on, instead of crashing the whole ``list`` call.
+    Non-string ``title``, ``body``, and ``created`` fields are coerced
+    to their ``str()`` form so a hand-edited file with
+    ``body: 42`` (or a number stored by an older version of the tool)
+    no longer crashes ``list`` with
+    ``TypeError: 'int' object is not subscriptable`` on the slice
+    preview.
     """
     notes = load_notes()
     if not notes:
@@ -83,8 +89,14 @@ def list_notes() -> None:
         if not isinstance(note, dict):
             continue
         title = note.get("title", "(untitled)")
+        if not isinstance(title, str):
+            title = str(title) if title is not None else "(untitled)"
         body = note.get("body", "")
+        if not isinstance(body, str):
+            body = str(body) if body is not None else ""
         created = note.get("created", note_id)
+        if not isinstance(created, str):
+            created = str(created) if created is not None else note_id
         print(f"\n[{created}] {title}")
         preview = body[:80]
         if len(body) > 80:

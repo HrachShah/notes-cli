@@ -67,6 +67,40 @@ def test_list_skips_note_without_title(isolated_notes_home, capsys):
     assert "untitled" in out.lower()
 
 
+def test_list_coerces_non_string_body_to_str(isolated_notes_home, capsys):
+    """A note whose body is a number or other non-string should still
+    print: the previous code did ``body[:80]`` directly, which crashed
+    with ``TypeError: 'int' object is not subscriptable`` on int bodies.
+    """
+    isolated_notes_home.write_text(
+        json.dumps({
+            "a": {"title": "Numeric", "body": 42, "created": "x"},
+            "b": {"title": "ListBody", "body": [1, 2, 3], "created": "y"},
+        })
+    )
+    notes_mod.list_notes()
+    out = capsys.readouterr().out
+    # The int body should be stringified, not crash
+    assert "Numeric" in out
+    assert "ListBody" in out
+    # str(42) -> "42" is what gets printed as the preview
+    assert "42" in out
+
+
+def test_list_coerces_non_string_title_and_created(isolated_notes_home, capsys):
+    """A note with int title or int created should still print, not crash."""
+    isolated_notes_home.write_text(
+        json.dumps({
+            "a": {"title": 7, "body": "b", "created": 99},
+        })
+    )
+    notes_mod.list_notes()
+    out = capsys.readouterr().out
+    assert "7" in out
+    assert "b" in out
+    assert "99" in out
+
+
 def test_delete_rejects_empty_search(isolated_notes_home, capsys):
     notes_mod.add_note("real", "body")
     with pytest.raises(SystemExit) as exc:

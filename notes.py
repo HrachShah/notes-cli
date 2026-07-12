@@ -3,22 +3,64 @@
 
 import argparse
 import json
-import sys
+import logging
 from datetime import datetime
 from pathlib import Path
+
+log = logging.getLogger("notes")
 
 NOTES_DIR = Path.home() / ".notescli"
 NOTES_FILE = NOTES_DIR / "notes.json"
 
 
 def load_notes() -> dict[str, dict]:
-    """Load notes from disk, returning an empty dict if none exist."""
+    """Load notes from disk, returning an empty dict if none exist.
+
+    If the on-disk file is unreadable or its JSON is malformed, the file is
+    copied aside as ``notes.json.corrupt-<timestamp>`` so the user can recover
+    notes by hand, and an empty dict is returned for the rest of this run.
+    Silently returning ``{}`` on a corrupt file would let the next ``save_notes``
+    call overwrite the original with an empty document, which is a worse
+    failure than refusing to load it.
+    """
     if not NOTES_FILE.exists():
         return {}
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except json.JSONDecodeError as exc:
+        backup = NOTES_FILE.with_name(
+            f"notes.json.corrupt-{datetime.now().isoformat(timespec='seconds')}"
+        )
+        try:
+            NOTES_FILE.replace(backup)
+        except OSError as backup_exc:
+            log.error(
+                "%s is not valid JSON (%s at line %d col %d) and could not be "
+                "backed up (%s). Refusing to start to avoid overwriting your data.",
+                NOTES_FILE,
+                exc.msg,
+                exc.lineno,
+                exc.colno,
+                backup_exc.strerror or backup_exc,
+            )
+            raise SystemExit(1)
+        log.warning(
+            "%s is not valid JSON (%s at line %d col %d). Moved the old file "
+            "aside to %s and starting with an empty notebook.",
+            NOTES_FILE,
+            exc.msg,
+            exc.lineno,
+            exc.colno,
+            backup,
+        )
+        return {}
+    except IOError as exc:
+        log.warning(
+            "could not read %s (%s). Starting with an empty notebook for this run.",
+            NOTES_FILE,
+            exc.strerror or exc,
+        )
         return {}
 
 

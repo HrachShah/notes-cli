@@ -156,3 +156,36 @@ def test_cli_delete_rejects_empty_arg(tmp_path):
     )
     assert result.returncode == 2
     assert "empty" in result.stderr.lower()
+
+
+def test_add_note_same_second_keeps_all_notes(isolated_notes_home, monkeypatch):
+    """Two notes added in the same second should both persist, not clobber.
+
+    The pre-fix code used the wall-clock second as the only key, so the
+    second add_note() call would silently overwrite the first. The fix
+    keeps the same base id (so a list of the file still orders by it)
+    and appends a -N suffix for each subsequent collision.
+    """
+    from datetime import datetime
+
+    frozen = datetime(2026, 1, 2, 3, 4, 5)
+    monkeypatch.setattr(notes_mod, "_now", lambda: frozen)
+
+    notes_mod.add_note("First", "body1")
+    notes_mod.add_note("Second", "body2")
+    notes_mod.add_note("Third", "body3")
+
+    data = json.loads(isolated_notes_home.read_text("utf-8"))
+    assert len(data) == 3, f"all three notes should persist, got {list(data)}"
+
+    titles = {entry["title"] for entry in data.values()}
+    assert titles == {"First", "Second", "Third"}
+
+    bodies = {entry["body"] for entry in data.values()}
+    assert bodies == {"body1", "body2", "body3"}
+
+    for note_id, entry in data.items():
+        assert entry["created"] == note_id, (
+            f"created field should match id for stable round-tripping; "
+            f"id={note_id!r} created={entry['created']!r}"
+        )

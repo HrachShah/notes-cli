@@ -96,9 +96,15 @@ def list_notes() -> None:
     for note_id, note in sorted(notes.items(), reverse=True):
         if not isinstance(note, dict):
             continue
-        title = note.get("title", "(untitled)")
-        body = note.get("body", "")
+        title = note.get("title", "(untitled)") or "(untitled)"
+        if not isinstance(title, str):
+            title = str(title)
+        body = note.get("body", "") or ""
+        if not isinstance(body, str):
+            body = str(body)
         created = note.get("created", note_id)
+        if not isinstance(created, str):
+            created = str(created)
         print(f"\n[{created}] {title}")
         preview = body[:80]
         if len(body) > 80:
@@ -125,7 +131,7 @@ def delete_note(title: str) -> None:
         (note_id, note)
         for note_id, note in notes.items()
         if isinstance(note, dict)
-        and needle.lower() in (note.get("title") or "").lower()
+        and needle.lower() in str(note.get("title") or "").lower()
     ]
     if not matches:
         print(f"No note found matching: {needle}")

@@ -189,3 +189,30 @@ def test_add_note_same_second_keeps_all_notes(isolated_notes_home, monkeypatch):
             f"created field should match id for stable round-tripping; "
             f"id={note_id!r} created={entry['created']!r}"
         )
+
+
+def test_list_coerces_malformed_fields(isolated_notes_home, capsys):
+    isolated_notes_home.write_text(
+        json.dumps(
+            {
+                "a": {"title": 123, "body": None, "created": 456},
+                "b": {"title": None, "body": 789},
+            }
+        )
+    )
+
+    notes_mod.list_notes()
+    out = capsys.readouterr().out
+    assert "123" in out
+    assert "456" in out
+    assert "untitled" in out.lower()
+    assert "789" in out
+
+
+def test_delete_matches_numeric_title(isolated_notes_home, capsys):
+    isolated_notes_home.write_text(json.dumps({"a": {"title": 123, "body": "body"}}))
+
+    notes_mod.delete_note("23")
+
+    assert "Deleted" in capsys.readouterr().out
+    assert json.loads(isolated_notes_home.read_text("utf-8")) == {}

@@ -17,9 +17,10 @@ def load_notes() -> dict[str, dict]:
         return {}
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            notes = json.load(f)
     except (json.JSONDecodeError, IOError):
         return {}
+    return notes if isinstance(notes, dict) else {}
 
 
 def save_notes(notes: dict[str, dict]) -> None:

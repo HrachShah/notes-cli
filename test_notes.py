@@ -68,6 +68,10 @@ class NotesCliTests(unittest.TestCase):
         data = json.loads(notes.NOTES_FILE.read_text("utf-8"))
         self.assertEqual(len(data), 3)
 
+    def test_load_notes_ignores_non_dict_root(self):
+        notes.NOTES_FILE.write_text(json.dumps([{"title": "not a mapping"}]), encoding="utf-8")
+        self.assertEqual(notes.load_notes(), {})
+
     def test_list_notes_handles_non_dict_entries(self):
         # Hand-edited notes.json can have non-dict values; list_notes
         # should warn and skip rather than crash with AttributeError on

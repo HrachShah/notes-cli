@@ -216,3 +216,22 @@ def test_delete_matches_numeric_title(isolated_notes_home, capsys):
 
     assert "Deleted" in capsys.readouterr().out
     assert json.loads(isolated_notes_home.read_text("utf-8")) == {}
+
+def test_save_notes_replaces_existing_file_atomically(isolated_notes_home, monkeypatch):
+    """A failed write must leave the previous JSON document readable."""
+    notes_mod.save_notes({"old": {"title": "Old", "body": "body"}})
+    original_replace = notes_mod.os.replace
+
+    def fail_replace(source, destination):
+        raise OSError("simulated rename failure")
+
+    monkeypatch.setattr(notes_mod.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="rename failure"):
+        notes_mod.save_notes({"new": {"title": "New", "body": "body"}})
+
+    assert json.loads(isolated_notes_home.read_text("utf-8")) == {
+        "old": {"title": "Old", "body": "body"}
+    }
+    assert not isolated_notes_home.with_name(".notes.json.tmp").exists()
+    monkeypatch.setattr(notes_mod.os, "replace", original_replace)
+

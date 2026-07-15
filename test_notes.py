@@ -71,6 +71,19 @@ class TestCreatedFieldIsHumanReadable(unittest.TestCase):
             self.assertRegex(note["created"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
 
 
+class TestDeleteToleratesMalformedNotes(unittest.TestCase):
+    def test_delete_skips_records_without_string_titles(self):
+        with tempfile.TemporaryDirectory() as tmp_home:
+            notes = _import_notes_module(Path(tmp_home))
+            notes.save_notes({
+                "bad": {"body": "orphaned"},
+                "good": {"title": "Keep this", "body": "body"},
+            })
+            with redirect_stdout(io.StringIO()) as output:
+                notes.delete_note("missing")
+            self.assertIn("No note found", output.getvalue())
+
+
 class TestListOutputsAllNotes(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

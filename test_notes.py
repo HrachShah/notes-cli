@@ -68,6 +68,11 @@ class NotesCliTests(unittest.TestCase):
         data = json.loads(notes.NOTES_FILE.read_text("utf-8"))
         self.assertEqual(len(data), 3)
 
+    def test_save_notes_removes_temporary_file_after_success(self):
+        notes.save_notes({"id": {"title": "Title", "body": "Body"}})
+        self.assertEqual(json.loads(notes.NOTES_FILE.read_text("utf-8"))["id"]["title"], "Title")
+        self.assertFalse(notes.NOTES_FILE.with_name(".notes.json.tmp").exists())
+
     def test_load_notes_ignores_non_dict_root(self):
         notes.NOTES_FILE.write_text(json.dumps([{"title": "not a mapping"}]), encoding="utf-8")
         self.assertEqual(notes.load_notes(), {})

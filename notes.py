@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,10 +25,17 @@ def load_notes() -> dict[str, dict]:
 
 
 def save_notes(notes: dict[str, dict]) -> None:
-    """Persist the notes dictionary to disk."""
+    """Persist the notes dictionary to disk without exposing partial JSON."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    temporary_file = NOTES_FILE.with_name(f".{NOTES_FILE.name}.tmp")
+    try:
+        with open(temporary_file, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary_file, NOTES_FILE)
+    finally:
+        temporary_file.unlink(missing_ok=True)
 
 
 def _new_note_id(existing_ids: set[str] | None = None) -> str:

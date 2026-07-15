@@ -29,32 +29,22 @@ def save_notes(notes: dict[str, dict]) -> None:
         json.dump(notes, f, indent=2, ensure_ascii=False)
 
 
-def _new_note_id() -> str:
-    """Return a note id that is unique within the current second.
-
-    The original implementation used ``datetime.now().isoformat(timespec="seconds")``
-    as the dict key, which has only one-second resolution. Two notes added
-    in the same second produced the same key, and the second ``add`` silently
-    overwrote the first (the user got a "Note saved" message but their
-    first note was gone from disk). The id is still a timestamp (it sorts
-    chronologically and ``list_notes`` displays it), but it is now
-    disambiguated with a counter suffix when a collision is detected.
-    """
+def _new_note_id(existing_ids: set[str] | None = None) -> str:
+    """Return a timestamp-based id that does not collide with stored notes."""
+    existing_ids = existing_ids or set()
     base = datetime.now().isoformat(timespec="seconds")
-    # ``_id_suffix`` persists for the life of the process, so two adds in
-    # the same second produce distinct ids.
-    if not hasattr(_new_note_id, "_seen"):
-        _new_note_id._seen = {}  # base -> next suffix
-    seen = _new_note_id._seen
-    n = seen.get(base, 0)
-    seen[base] = n + 1
-    return base if n == 0 else f"{base}-{n}"
+    candidate = base
+    suffix = 1
+    while candidate in existing_ids:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = _new_note_id()
+    note_id = _new_note_id(set(notes))
     notes[note_id] = {
         "title": title,
         "body": body,

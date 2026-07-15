@@ -3,7 +3,7 @@
 
 import argparse
 import json
-import sys
+import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -18,16 +18,26 @@ def load_notes() -> dict[str, dict]:
         return {}
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            notes = json.load(f)
     except (json.JSONDecodeError, IOError):
         return {}
+    return notes if isinstance(notes, dict) else {}
 
 
 def save_notes(notes: dict[str, dict]) -> None:
     """Persist the notes dictionary to disk."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=NOTES_DIR, delete=False
+        ) as f:
+            temporary_path = Path(f.name)
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+        temporary_path.replace(NOTES_FILE)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
 
 
 def add_note(title: str, body: str) -> None:

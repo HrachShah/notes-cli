@@ -100,6 +100,11 @@ class NotesCliTests(unittest.TestCase):
         remaining_titles = sorted(p["title"] for p in data.values())
         self.assertEqual(remaining_titles, ["Deploy staging", "Other"])
 
+    def test_delete_matches_unicode_case_variants(self):
+        notes.add_note("Straße", "x")
+        notes.delete_note("STRASSE")
+        self.assertEqual(json.loads(notes.NOTES_FILE.read_text("utf-8")), {})
+
     def test_delete_no_match(self):
         notes.add_note("Deploy checklist", "x")
         notes.delete_note("NoSuchTitle")

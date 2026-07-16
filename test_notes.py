@@ -84,6 +84,21 @@ class TestDeleteToleratesMalformedNotes(unittest.TestCase):
             self.assertIn("No note found", output.getvalue())
 
 
+class TestListSkipsMalformedNotes(unittest.TestCase):
+    def test_list_skips_records_without_display_fields(self):
+        with tempfile.TemporaryDirectory() as tmp_home:
+            notes = _import_notes_module(Path(tmp_home))
+            notes.save_notes({
+                "bad": {"title": "missing body", "created": "2025-01-01T00:00:00"},
+                "good": {"title": "Keep this", "body": "body", "created": "2025-01-01T00:00:01"},
+            })
+            output = io.StringIO()
+            with redirect_stdout(output):
+                notes.list_notes()
+            assert output.getvalue().count("Keep this") == 1
+            assert "missing body" not in output.getvalue()
+
+
 class TestListOutputsAllNotes(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

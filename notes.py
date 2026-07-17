@@ -79,7 +79,9 @@ def delete_note(title: str) -> None:
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if needle in note.get("title", "").casefold()
+        if isinstance(note, dict)
+        and isinstance(note.get("title"), str)
+        and needle in note["title"].casefold()
     ]
     if not matches:
         print(f"No note found matching: {title}")

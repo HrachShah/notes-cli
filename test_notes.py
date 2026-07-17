@@ -83,8 +83,6 @@ class TestDeleteToleratesMalformedNotes(unittest.TestCase):
                 notes.delete_note("missing")
             self.assertIn("No note found", output.getvalue())
 
-
-class TestDeleteToleratesMalformedNotes(unittest.TestCase):
     def test_delete_skips_non_mapping_records(self):
         with tempfile.TemporaryDirectory() as tmp_home:
             notes = _import_notes_module(Path(tmp_home))

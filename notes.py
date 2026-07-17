@@ -60,18 +60,21 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        created = note.get("created", note_id)
+        title = str(note.get("title", ""))
+        body = str(note.get("body", ""))
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
     notes = load_notes()
+    needle = title.casefold()
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if needle in str(note.get("title", "")).casefold()
     ]
     if not matches:
         print(f"No note found matching: {title}")

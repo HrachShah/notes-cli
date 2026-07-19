@@ -87,6 +87,12 @@ class NotesCliTests(unittest.TestCase):
         # Should not raise.
         notes.list_notes()
 
+    def test_list_notes_stringifies_non_string_body(self):
+        notes.NOTES_FILE.write_text(json.dumps({
+            "note": {"title": "Numbers", "body": 42, "created": "note"},
+        }))
+        notes.list_notes()
+
     def test_delete_by_substring(self):
         notes.add_note("Deploy checklist", "x")
         notes.add_note("Deploy staging", "y")

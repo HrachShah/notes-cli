@@ -76,6 +76,10 @@ def list_notes() -> None:
         created = note.get("created", "unknown")
         title = note.get("title", "Untitled")
         body = note.get("body", "")
+        if not isinstance(title, str):
+            title = str(title)
+        if not isinstance(body, str):
+            body = str(body)
         print(f"\n[{created}] {title}")
         print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 

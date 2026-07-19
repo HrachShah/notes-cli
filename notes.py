@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -17,22 +18,42 @@ def load_notes() -> dict[str, dict]:
         return {}
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            notes = json.load(f)
     except (json.JSONDecodeError, IOError):
         return {}
+    return notes if isinstance(notes, dict) else {}
 
 
 def save_notes(notes: dict[str, dict]) -> None:
-    """Persist the notes dictionary to disk."""
+    """Persist the notes dictionary to disk without exposing partial JSON."""
     NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(NOTES_FILE, "w", encoding="utf-8") as f:
-        json.dump(notes, f, indent=2, ensure_ascii=False)
+    temporary_file = NOTES_FILE.with_name(f".{NOTES_FILE.name}.tmp")
+    try:
+        with open(temporary_file, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary_file, NOTES_FILE)
+    finally:
+        temporary_file.unlink(missing_ok=True)
+
+
+def _new_note_id(existing_ids: set[str] | None = None) -> str:
+    """Return a timestamp-based id that does not collide with stored notes."""
+    existing_ids = existing_ids or set()
+    base = datetime.now().isoformat(timespec="seconds")
+    candidate = base
+    suffix = 1
+    while candidate in existing_ids:
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def add_note(title: str, body: str) -> None:
     """Create a new note with the given title and body."""
     notes = load_notes()
-    note_id = datetime.now().isoformat(timespec="seconds")
+    note_id = _new_note_id(set(notes))
     notes[note_id] = {
         "title": title,
         "body": body,
@@ -49,18 +70,25 @@ def list_notes() -> None:
         print("No notes yet. Add one with: notes-cli add <title>")
         return
     for note_id, note in sorted(notes.items(), reverse=True):
-        created = note["created"]
-        print(f"\n[{created}] {note['title']}")
-        print(f"  {note['body'][:80]}{'...' if len(note['body']) > 80 else ''}")
+        if not isinstance(note, dict):
+            print(f"Warning: skipping non-dict entry for note {note_id}")
+            continue
+        created = note.get("created", "unknown")
+        title = note.get("title", "Untitled")
+        body = note.get("body", "")
+        print(f"\n[{created}] {title}")
+        print(f"  {body[:80]}{'...' if len(body) > 80 else ''}")
 
 
 def delete_note(title: str) -> None:
     """Delete the first note whose title contains the given string (case-insensitive)."""
     notes = load_notes()
+    target = title.casefold()
     matches = [
         (note_id, note)
         for note_id, note in notes.items()
-        if title.lower() in note["title"].lower()
+        if isinstance(note, dict) and isinstance(note.get("title"), str)
+        and target in note["title"].casefold()
     ]
     if not matches:
         print(f"No note found matching: {title}")

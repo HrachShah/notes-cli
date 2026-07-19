@@ -112,6 +112,12 @@ class NotesCliTests(unittest.TestCase):
         self.assertEqual(len(data), 1)
 
 
+    def test_delete_matches_unicode_casefold_equivalents(self):
+        notes.add_note("Straße", "x")
+        notes.delete_note("STRASSE")
+        self.assertEqual(json.loads(notes.NOTES_FILE.read_text("utf-8")), {})
+
+
     def test_delete_note_skips_entries_with_non_string_title(self):
         # A note hand-edited into notes.json (or written by a different
         # version of the tool) can have a missing or null title field.

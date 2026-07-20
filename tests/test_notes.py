@@ -123,6 +123,10 @@ def test_load_notes_recovers_from_non_dict_file(isolated_notes_home):
     isolated_notes_home.write_text('"a string"')
     assert notes_mod.load_notes() == {}
 
+def test_load_notes_recovers_from_invalid_utf8(isolated_notes_home):
+    isolated_notes_home.write_bytes(b"{\xff")
+    assert notes_mod.load_notes() == {}
+
 
 def test_cli_add_then_list_via_subprocess(tmp_path, monkeypatch):
     """Smoke test the actual CLI script with a temp HOME."""

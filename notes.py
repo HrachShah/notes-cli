@@ -31,7 +31,7 @@ def load_notes() -> dict[str, dict]:
     try:
         with open(NOTES_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, UnicodeDecodeError, IOError):
         return {}
     if not isinstance(data, dict):
         return {}

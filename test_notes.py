@@ -73,6 +73,10 @@ class NotesCliTests(unittest.TestCase):
         self.assertEqual(json.loads(notes.NOTES_FILE.read_text("utf-8"))["id"]["title"], "Title")
         self.assertFalse(notes.NOTES_FILE.with_name(".notes.json.tmp").exists())
 
+    def test_load_notes_ignores_invalid_utf8(self):
+        notes.NOTES_FILE.write_bytes(b"{\xff")
+        self.assertEqual(notes.load_notes(), {})
+
     def test_load_notes_ignores_non_dict_root(self):
         notes.NOTES_FILE.write_text(json.dumps([{"title": "not a mapping"}]), encoding="utf-8")
         self.assertEqual(notes.load_notes(), {})
